@@ -46,6 +46,7 @@
 #endif
 #include <jsonrpccpp/client/connectors/httpclient.h>
 #include "FarmClient.h"
+#include "EthMonitoring.h"
 #if ETH_STRATUM
 #include <libstratum/EthStratumClient.h>
 #include <libstratum/EthStratumClientV2.h>
@@ -96,6 +97,14 @@ public:
 			mode = OperationMode::Farm;
 			m_farmURL = argv[++i];
 			m_activeFarmURL = m_farmURL;
+		}
+		else if (arg == "--minername" && i + 1 < argc) {
+			minerName = argv[++i];
+			minelog << "EthMonitoring.com initialized with name: " << minerName;
+		}
+		else if (arg == "--accesstoken" && i + 1 < argc) { 
+			accessToken = argv[++i];
+			minelog << "EthMonitoring.com access token: " << accessToken;
 		}
 		else if ((arg == "-FF" || arg == "-FS" || arg == "--farm-failover" || arg == "--stratum-failover") && i + 1 < argc)
 		{
@@ -880,6 +889,7 @@ private:
 			m_farmRecheckPeriod = m_defaultStratumFarmRecheckPeriod;
 
 		Farm f;
+		EthMonitoring ethMon;
 
 		// this is very ugly, but if Stratum Client V2 tunrs out to be a success, V1 will be completely removed anyway
 		if (m_stratumClientVersion == 1) {
@@ -908,6 +918,8 @@ private:
 				return false;
 			});
 
+			int last_update_to_monitoring = 0;
+
 			while (client.isRunning())
 			{
 				auto mp = f.miningProgress();
@@ -923,6 +935,18 @@ private:
 						minelog << "Waiting for work package...";
 					}
 				}
+
+				// Current time
+				int current_time = std::time(0);
+				int last_update = current_time - last_update_to_monitoring;
+
+				if ((last_update > 5 && mp.rate() > 0) || (mp.rate() == 0 && last_update > 60)) {
+					minelog << "Updating EthMonitoring.com stats (" << mp << ")";
+					last_update_to_monitoring = current_time;
+					// Post update to API
+					ethMon.updateEthMonitoringStats(minerName, accessToken, mp.rate(), f.getSolutionStats().getAccepts(), f.getSolutionStats().getRejects());
+				}
+
 				this_thread::sleep_for(chrono::milliseconds(m_farmRecheckPeriod));
 			}
 		}
@@ -1005,6 +1029,10 @@ private:
 	/// Farm params
 	string m_farmURL = "http://127.0.0.1:8545";
 	string m_farmFailOverURL = "";
+
+	// EthMonitoring.com params
+	string minerName = "";
+	string accessToken = "";
 
 
 	string m_activeFarmURL = m_farmURL;

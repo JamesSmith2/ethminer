@@ -43,6 +43,8 @@ void help()
 		<< "    -v,--verbosity <0 - 9>  Set the log verbosity from 0 to 9 (default: 8)." << endl
 		<< "    -V,--version  Show the version and exit." << endl
 		<< "    -h,--help  Show this help message and exit." << endl
+		<< "    --minername EthMonitoring.com miner name." << endl
+		<< "    --accesstoken EthMonitoring.com access token" << endl
 		;
 	exit(0);
 }
