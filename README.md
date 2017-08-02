@@ -53,6 +53,16 @@ For a full list of available command, please run
 ethminer --help
 ```
 
+## EthMonitoring.com Usage
+
+Added parameters:
+
+--minername
+--accesstoken
+
+Example: --minername rig1 --accesstoken 123123
+
+After adding parameters, ethminer will automatically be updated and displayed on EthMonitoring.com
 
 ## Build
 
