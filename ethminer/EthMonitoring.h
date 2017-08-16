@@ -10,7 +10,7 @@ class EthMonitoring
 {
 public:
 
-	void EthMonitoring::updateEthMonitoringStats(string _name, string _token, long _rate, int _accepted, int _rejected) {
+	void updateEthMonitoringStats(string _name, string _token, long _rate, int _accepted, int _rejected) {
 		boost::asio::ip::tcp::iostream stream;
 
 		float mh = _rate / 1000000.0f;
