@@ -244,6 +244,10 @@ public:
 		{
 			m_worktimeout = atoi(argv[++i]);
 		}
+		else if ((arg == "-RH" || arg == "--report-hashrate") && i + 1 < argc)
+		{
+			m_report_stratum_hashrate = true;
+		}
 
 #endif
 #if ETH_ETHASHCL
@@ -551,9 +555,8 @@ public:
 			<< "        0: official stratum spec: ethpool, ethermine, coinotron, mph, nanopool (default)" << endl
 			<< "        1: eth-proxy compatible: dwarfpool, f2pool, nanopool" << endl
 			<< "        2: EthereumStratum/1.0.0: nicehash" << endl
+			<< "    -RH, --report-hashrate Report current hashrate to pool (please only enable on pools supporting this)" << endl
 			<< "    -SE, --stratum-email <s> Email address used in eth-proxy (optional)" << endl
-#endif
-#if ETH_STRATUM
 			<< "    --farm-recheck <n>  Leave n ms between checks for changed work (default: 500). When using stratum, use a high value (i.e. 2000) to get more stable hashrate output" << endl
 #endif
 			<< endl
@@ -561,7 +564,7 @@ public:
 			<< "    -M [<n>],--benchmark [<n>] Benchmark for mining and exit; Optionally specify block number to benchmark against specific DAG." << endl
 			<< "    --benchmark-warmup <seconds>  Set the duration of warmup for the benchmark tests (default: 3)." << endl
 			<< "    --benchmark-trial <seconds>  Set the duration for each trial for the benchmark tests (default: 3)." << endl
-			<< "    --benchmark-trials <n>  Set the duration of warmup for the benchmark tests (default: 5)." << endl
+			<< "    --benchmark-trials <n>  Set the number of benchmark trials to run (default: 5)." << endl
 			<< "Simulation mode:" << endl
 			<< "    -Z [<n>],--simulation [<n>] Mining test mode. Used to validate kernel optimizations. Optionally specify block number." << endl
 			<< "Mining configuration:" << endl
@@ -591,7 +594,7 @@ public:
 			<< "        yield - Instruct CUDA to yield its thread when waiting for results from the device." << endl
 			<< "        sync  - Instruct CUDA to block the CPU thread on a synchronization primitive when waiting for the results from the device." << endl
 			<< "    --cuda-devices <0 1 ..n> Select which CUDA GPUs to mine on. Default is to use all" << endl
-			<< "    --cuda-parallel-hash <1 2 ..8> Define how many hashes to calculate in a kernel, can be scaled to achive better performance. Default=4" << endl
+			<< "    --cuda-parallel-hash <1 2 ..8> Define how many hashes to calculate in a kernel, can be scaled to achieve better performance. Default=4" << endl
 #endif
 			;
 	}
@@ -627,7 +630,7 @@ private:
 			f.start("opencl", false);
 		else if (_m == MinerType::CUDA)
 			f.start("cuda", false);
-		f.setWork(genesis);
+		f.setWork(WorkPackage{genesis});
 
 		map<uint64_t, WorkingProgress> results;
 		uint64_t mean = 0;
@@ -691,11 +694,11 @@ private:
 			f.start("opencl", false);
 		else if (_m == MinerType::CUDA)
 			f.start("cuda", false);
-		f.setWork(genesis);
 
 		int time = 0;
 
 		WorkPackage current = WorkPackage(genesis);
+		f.setWork(current);
 		while (true) {
 			bool completed = false;
 			Solution solution;
@@ -784,7 +787,10 @@ private:
 					auto mp = f.miningProgress();
 					f.resetMiningProgress();
 					if (current)
-						minelog << "Mining on" << current.header << ": " << mp << f.getSolutionStats();
+					{
+						minelog << "Mining on" << current.header << f.getSolutionStats();
+						minelog << mp;
+					}
 					else
 						minelog << "Getting work package...";
 
@@ -824,7 +830,7 @@ private:
 				{
 					bool ok = prpc->eth_submitWork("0x" + toHex(solution.nonce), "0x" + toString(solution.headerHash), "0x" + toString(solution.mixHash));
 					if (ok) {
-						cnote << "B-) Submitted and accepted.";
+						cnote << EthLime << "B-) Submitted and accepted." << EthReset;
 						f.acceptedSolution(false);
 					}
 					else {
@@ -928,11 +934,17 @@ private:
 				{
 					if (client.current())
 					{
-						minelog << "Mining on" << client.currentHeaderHash() << ": " << mp << f.getSolutionStats();
+						minelog << "Mining on" << client.currentHeaderHash() << f.getSolutionStats();
+						minelog << mp;
 					}
 					else
 					{
 						minelog << "Waiting for work package...";
+					}
+					
+					if (this->m_report_stratum_hashrate) {
+						auto rate = mp.rate();
+						client.submitHashrate(toJS(rate));
 					}
 				}
 
@@ -979,11 +991,17 @@ private:
 				{
 					if (client.current())
 					{
-						minelog << "Mining on" << client.currentHeaderHash() << ": " << mp << f.getSolutionStats();
+						minelog << "Mining on" << client.currentHeaderHash() << f.getSolutionStats();
+						minelog << mp;
 					}
 					else if (client.waitState() == MINER_WAIT_STATE_WORK)
 					{
 						minelog << "Waiting for work package...";
+					}
+					
+					if (this->m_report_stratum_hashrate) {
+						auto rate = mp.rate();
+						client.submitHashrate(toJS(rate));
 					}
 				}
 				this_thread::sleep_for(chrono::milliseconds(m_farmRecheckPeriod));
@@ -1044,6 +1062,7 @@ private:
 	int m_worktimeout = 180;
 
 #if ETH_STRATUM
+	bool m_report_stratum_hashrate = false;
 	int m_stratumClientVersion = 1;
 	int m_stratumProtocol = STRATUM_PROTOCOL_STRATUM;
 	string m_user;
